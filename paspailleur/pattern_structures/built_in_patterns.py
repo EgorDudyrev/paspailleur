@@ -1308,7 +1308,9 @@ class NgramSetPattern(Pattern):
         The type of the pattern's value, which is a frozenset of tuples.
     StopWords: set[str]
         A set of exclusively stop words to be excluded from the n-grams.
-        But if a set has both stop words and non stop words it is kept in the analysis
+        But if a set has both stop words and non-stop words it is kept in the analysis
+    MaxAtomicSize: int, optional
+        The maximum number of words in an atomic ngram. Unbounded if unspecified.
 
     Properties
     ..........
@@ -1330,6 +1332,7 @@ class NgramSetPattern(Pattern):
     """
     PatternValueType = frozenset[tuple[str, ...]]
     StopWords: set[str] = frozenset()
+    MaxAtomicSize: int = None
 
     def __repr__(self) -> str:
         """
@@ -1477,11 +1480,11 @@ class NgramSetPattern(Pattern):
                     # word in words_a
                     for i in words_pos_a[word]:
                         ngram_size = next(
-                            s for s in range(len(ngram_b)+1)
-                            if i+s >= len(ngram_a) or j+s >= len(ngram_b) or ngram_a[i+s] != ngram_b[j+s]
+                            s for s in range(len(ngram_b) + 1)
+                            if i + s >= len(ngram_a) or j + s >= len(ngram_b) or ngram_a[i + s] != ngram_b[j + s]
                         )
 
-                        common_ngrams.append(ngram_a[i:i+ngram_size])
+                        common_ngrams.append(ngram_a[i:i + ngram_size])
 
         # Delete common n-grams contained in other common n-grams
         common_ngrams = sorted(common_ngrams, key=lambda ngram: len(ngram), reverse=True)
@@ -1631,17 +1634,24 @@ class NgramSetPattern(Pattern):
         and by an *order ideal* of atomic patterns (when `atoms_configuration` = 'max').
 
         """
-        if atoms_configuration == 'min':
+        if atoms_configuration == 'min' and self.MaxAtomicSize is None:
             return {self.__class__([ngram]) for ngram in self.value}
 
         # atoms_configuration == 'max':
-        atoms = set()
+        ngrams: set[tuple[str, ...]] = set()
         for ngram in self.value:
-            for atom_size in range(1, len(ngram)+1):
-                atoms |= {ngram[i:i+atom_size] for i in range(len(ngram)-atom_size+1)}
+            max_ngram_size = len(ngram) if self.MaxAtomicSize is None else self.MaxAtomicSize
+            for atom_size in range(1, max_ngram_size):
+                ngrams |= {ngram[i:i + atom_size] for i in range(len(ngram) - atom_size + 1)}
 
-        return {self.__class__([v]) for v in atoms}
-
+        atoms = [self.__class__([ngram]) for ngram in ngrams]
+        if atoms_configuration == 'min':  # and self.MaxAtomicSize is not None
+            atoms = sorted(ngrams, key=lambda atom: len(atom), reverse=True)
+            i = 0
+            while i < len(atoms):
+                atoms[i + 1:] = [other for other in atoms[i + 1:] if not atoms[i] >= other]
+                i += 1
+        return set(atoms)
 
     @property
     def atomic_patterns(self) -> set[Self]:
