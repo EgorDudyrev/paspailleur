@@ -1,5 +1,8 @@
 from typing import Union, TypeVar
 
+import numpy as np
+import pandas as pd
+
 from paspailleur.pattern_structures.pattern import Pattern
 from paspailleur.pattern_structures import built_in_patterns as bip
 
@@ -69,3 +72,16 @@ def pattern_factory(pattern_class: Union[type[TPattern], str], pattern_name: str
                              f"Consult the documentation for the pattern class to find the list of existing attributes.")
         setattr(FactoredPattern, k, v)
     return FactoredPattern
+
+
+def from_pandas(df: pd.DataFrame) -> type[TPattern]:
+    DimensionTypes = {}
+    for f, dtype in df.dtypes.items():
+        if np.issubdtype(dtype, np.number):
+            pclass = 'IntervalPattern'
+            pparams = dict(BoundsUniverse=tuple(sorted(df[f].unique())))
+        elif np.issubdtype(dtype, np.object_):
+            pclass = 'CategorySetPattern'
+            pparams = dict(Universe=frozenset(df[f].unique()))
+        DimensionTypes[f] = pattern_factory(pclass, pattern_name=f, **pparams)
+    return pattern_factory('CartesianPattern', pattern_name='PandasPattern', DimensionTypes=DimensionTypes)
