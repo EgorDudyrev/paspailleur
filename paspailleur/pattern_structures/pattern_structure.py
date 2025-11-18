@@ -3,6 +3,8 @@ from collections import OrderedDict
 from functools import reduce, partial
 from operator import itemgetter
 from typing import Type, TypeVar, Union, Collection, Optional, Iterator, Generator, Literal, Iterable, Sized, NamedTuple
+
+import pandas as pd
 from bitarray import bitarray, frozenbitarray as fbarray
 from bitarray.util import zeros as bazeros, subset as basubset
 from caspailleur import inverse_order
@@ -447,6 +449,14 @@ class PatternStructure:
         atomic_patterns_list = list(self._atomic_patterns)
         return {atomic_patterns_list[idx]: {atomic_patterns_list[v] for v in vs.search(True)}
                 for idx, vs in enumerate(self._atomic_patterns_order)}
+
+    def binarise(self, attributes_type: Literal['any', 'support-minimal', 'support-maximal'] = 'any') -> pd.DataFrame:
+        sup_characteristic = attributes_type.replace('support-','')
+        atoms_iterator = self.iter_atomic_patterns(return_bitarrays=True, support_characteristic=sup_characteristic)
+        data = {atom: extent_ba.tolist() for atom, extent_ba in atoms_iterator}
+        df = pd.DataFrame.from_dict(data).astype(bool)
+        df.index = pd.Series(self._object_names, name='object')
+        return df
 
     @property
     def premaximal_patterns(self) -> dict[PatternType, set[str]]:

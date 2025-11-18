@@ -2,6 +2,7 @@ from collections import OrderedDict
 from collections.abc import Iterator
 from typing import Literal, Self
 
+import pandas as pd
 import pytest
 
 from paspailleur.pattern_structures.pattern_structure import PatternStructure
@@ -563,3 +564,25 @@ def test_iter_keys():
         extent = ps.extent(intent)
         for key in iterator:
             assert ps.extent(key) == extent, f"Problem with the extent of intent {intent}"
+
+
+def test_binarise():
+    patterns = [['hello world', 'who is there'], ['hello world'], ['world is there']]
+    patterns = [bip.NgramSetPattern(ngram) for ngram in patterns]
+    context = dict(zip('abc', patterns))
+    ps = PatternStructure()
+    ps.fit(context)
+
+    data_true = {
+        'world': [True, True, True], 'hello': [True, True, False], 'hello world': [True, True, False],
+        'is': [True, False, True], 'there': [True, False, True], 'is there': [True, False, True],
+        'who': [True, False, False], 'who is': [True, False, False], 'who is there': [True, False, False],
+        'world is': [False, False, True], 'world is there': [False, False, True],
+    }
+    data_true = {bip.NgramSetPattern(k): v for k, v in data_true.items()}
+    df_true = pd.DataFrame.from_dict(data_true)
+    df_true.index = pd.Series(['a','b','c'], name='object')
+    df = ps.binarise()
+    assert (df.index == df_true.index).all()
+    assert (df.columns == df_true.columns).all()
+    assert (df == df_true).all().all()
