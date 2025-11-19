@@ -5,6 +5,7 @@ from typing import Literal, Self
 import pandas as pd
 import pytest
 
+from paspailleur import from_pandas
 from paspailleur.pattern_structures.pattern_structure import PatternStructure
 from paspailleur.pattern_structures.pattern import Pattern
 from paspailleur.pattern_structures import built_in_patterns as bip
@@ -603,3 +604,18 @@ def test_binarise():
     assert (df == df_true).all().all()
 
 
+    from sklearn.datasets import load_iris
+    df = load_iris(as_frame=True)['data']
+    PClass = from_pandas(df)
+    ps = PatternStructure(PClass)
+    ps.fit(df.to_dict('index'))
+    from pandas.io.formats.printing import pprint_thing
+    atom = list(ps.atomic_patterns)[0]
+    pprint_thing(atom)
+    df_true = pd.DataFrame({atom: extent_ba.tolist() for atom, extent_ba in ps._atomic_patterns.items()}, index=df.index)
+    df_bin = ps.binarise()
+
+
+    assert df_bin.index.to_list() == df_true.index.to_list()
+    assert df_bin.columns.to_list() == df_true.columns.to_list()
+    assert (df_bin==df_true).all().all()
