@@ -586,3 +586,20 @@ def test_binarise():
     assert (df.index == df_true.index).all()
     assert (df.columns == df_true.columns).all()
     assert (df == df_true).all().all()
+
+    class f1Pattern(bip.IntervalPattern):
+        BoundsUniverse = (10,)
+    class f2Pattern(bip.IntervalPattern):
+        BoundsUniverse = (20,)
+    class PatternClass(bip.CartesianPattern):
+        DimensionTypes = {'f1': f1Pattern, 'f2': f2Pattern}
+    patterns = [PatternClass({'f1': 10, 'f2': 20})]
+    ps = PatternStructure()
+    ps.fit(dict(zip('a', patterns)))
+    df_true = pd.DataFrame({atom: [True] for atom in ps.atomic_patterns}, index=['a'])
+    df = ps.binarise()
+    assert df.index.to_list() == df_true.index.to_list()
+    assert df.columns.to_list() == df_true.columns.to_list()
+    assert (df == df_true).all().all()
+
+
