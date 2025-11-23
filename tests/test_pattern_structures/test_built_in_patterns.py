@@ -293,3 +293,7 @@ def test_CartesianPattern():
     max_true = HPPattern2({'age': 'ø'})
     assert HPPattern2.get_max_pattern() == max_true
 
+    x = HPPattern({'age': '[1, 10]'})
+    x_list = list(x)
+    assert x_list == [('age', AgePattern('[1, 10]'))]
+

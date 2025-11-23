@@ -2,8 +2,10 @@ from collections import OrderedDict
 from collections.abc import Iterator
 from typing import Literal, Self
 
+import pandas as pd
 import pytest
 
+from paspailleur import from_pandas
 from paspailleur.pattern_structures.pattern_structure import PatternStructure
 from paspailleur.pattern_structures.pattern import Pattern
 from paspailleur.pattern_structures import built_in_patterns as bip
@@ -563,3 +565,57 @@ def test_iter_keys():
         extent = ps.extent(intent)
         for key in iterator:
             assert ps.extent(key) == extent, f"Problem with the extent of intent {intent}"
+
+
+def test_binarise():
+    patterns = [['hello world', 'who is there'], ['hello world'], ['world is there']]
+    patterns = [bip.NgramSetPattern(ngram) for ngram in patterns]
+    context = dict(zip('abc', patterns))
+    ps = PatternStructure()
+    ps.fit(context)
+
+    data_true = {
+        'world': [True, True, True], 'hello': [True, True, False], 'hello world': [True, True, False],
+        'is': [True, False, True], 'there': [True, False, True], 'is there': [True, False, True],
+        'who': [True, False, False], 'who is': [True, False, False], 'who is there': [True, False, False],
+        'world is': [False, False, True], 'world is there': [False, False, True],
+    }
+    data_true = {bip.NgramSetPattern(k): v for k, v in data_true.items()}
+    df_true = pd.DataFrame.from_dict(data_true)
+    df_true.index = pd.Series(['a','b','c'], name='object')
+    df = ps.binarise()
+    assert (df.index == df_true.index).all()
+    assert (df.columns == df_true.columns).all()
+    assert (df == df_true).all().all()
+
+    class f1Pattern(bip.IntervalPattern):
+        BoundsUniverse = (10,)
+    class f2Pattern(bip.IntervalPattern):
+        BoundsUniverse = (20,)
+    class PatternClass(bip.CartesianPattern):
+        DimensionTypes = {'f1': f1Pattern, 'f2': f2Pattern}
+    patterns = [PatternClass({'f1': 10, 'f2': 20})]
+    ps = PatternStructure()
+    ps.fit(dict(zip('a', patterns)))
+    df_true = pd.DataFrame({atom: [True] for atom in ps.atomic_patterns}, index=['a'])
+    df = ps.binarise()
+    assert df.index.to_list() == df_true.index.to_list()
+    assert df.columns.to_list() == df_true.columns.to_list()
+    assert (df == df_true).all().all()
+
+
+    from sklearn.datasets import load_iris
+    df = load_iris(as_frame=True)['data']
+    PClass = from_pandas(df)
+    ps = PatternStructure(PClass)
+    ps.fit(df.to_dict('index'))
+    from pandas.io.formats.printing import pprint_thing
+    atom = list(ps.atomic_patterns)[0]
+    pprint_thing(atom)
+    df_true = pd.DataFrame({atom: extent_ba.tolist() for atom, extent_ba in ps._atomic_patterns.items()}, index=df.index)
+    df_bin = ps.binarise()
+
+
+    assert df_bin.index.to_list() == df_true.index.to_list()
+    assert df_bin.columns.to_list() == df_true.columns.to_list()
+    assert (df_bin==df_true).all().all()

@@ -2088,4 +2088,11 @@ class CartesianPattern(Pattern):
         >>> print(p['name'])
         {'Alice Johnson'}
         """
-        return self.value[item]
+        if isinstance(item, int):
+            item = list(self.DimensionTypes)[item]
+
+        val = self.value[item] if item in self.value else self.DimensionTypes[item].get_min_pattern()
+        return val
+
+    def __iter__(self):
+        return iter(self.value.items())
