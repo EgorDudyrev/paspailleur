@@ -1,7 +1,8 @@
 import math
-from builtins import set
 from typing import Self, Collection, Optional, Type, Literal
 from numbers import Number
+
+import numpy as np
 from frozendict import frozendict
 import re
 
@@ -2267,3 +2268,25 @@ class CartesianPattern(Pattern):
 
     def __iter__(self):
         return iter(self.value.items())
+
+    def plot(self, fig=None, axes: list[plt.Axes] = None, background_pattern: Self = None, foreground_pattern: Self = None, n_dimensions_per_row: int = None, params_per_dimension: dict = None, **kwargs) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        if axes is None:
+            fig = plt.figure() if fig is None else fig
+            n_dimensions_per_row = len(self.value) if n_dimensions_per_row is None else n_dimensions_per_row
+            axes = fig.subplots(math.ceil(len(self.value)/n_dimensions_per_row), n_dimensions_per_row)
+        if isinstance(axes, np.ndarray):
+            axes = axes.flatten()
+
+        for ax in axes[len(self.value):]:
+            ax.axis('off')
+
+        background_pattern = self.__class__(background_pattern) if background_pattern is not None else self
+        foreground_pattern = self.__class__(foreground_pattern) if foreground_pattern is not None else self
+        params_per_dimension = dict() if params_per_dimension is None else params_per_dimension
+
+        for dim, ax in zip(self.value, axes):
+            ax.set_title(dim)
+            self.value[dim].plot(ax=ax, foreground_pattern=foreground_pattern[dim], background_pattern=background_pattern[dim], **params_per_dimension.get(dim, dict()))
+        fig.subplots_adjust()
+        
