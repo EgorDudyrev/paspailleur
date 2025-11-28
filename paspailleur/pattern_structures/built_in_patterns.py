@@ -1169,12 +1169,14 @@ class IntervalPattern(Pattern):
         """
         return {self.max_pattern}
 
-    def plot(self, ax: plt.Axes = None, background_pattern: Self = None, **kwargs) -> None:
+    def plot(self, ax: plt.Axes = None, background_pattern: Self = None, face_color='lightblue', **kwargs) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
         if ax is None:
             fig, ax = plt.subplots()
         if background_pattern is not None:
-            assert background_pattern <= self
+            background_pattern = self.__class__(background_pattern)
+            assert background_pattern <= self, \
+                f'Background pattern "{background_pattern}" must be less precise than the visualised one "{self}"'
         else:
             background_pattern = self
 
@@ -1184,7 +1186,7 @@ class IntervalPattern(Pattern):
         for spine in ['left', 'right', 'top']:
             ax.spines[spine].set_visible(False)
 
-        rect = plt.Rectangle((self.lower_bound, 0), self.upper_bound - self.lower_bound, 1)
+        rect = plt.Rectangle((self.lower_bound, 0), self.upper_bound - self.lower_bound, 1, color=face_color)
         ax.add_patch(rect)
         ax.axvline(
             self.lower_bound,
@@ -1198,6 +1200,28 @@ class IntervalPattern(Pattern):
             linewidth=2 * (2 if self.is_upper_bound_closed else 1),
             color='k'
         )
+
+        left_width = self.lower_bound - background_pattern.lower_bound
+        inner_width = self.upper_bound - self.lower_bound
+        right_width = background_pattern.upper_bound - self.upper_bound
+        max_width = max(left_width, inner_width, right_width)
+        if right_width == max_width:
+            x = self.upper_bound*1.05
+            ha = 'left'
+        elif left_width == max_width:
+            x = self.lower_bound * 0.95
+            ha = 'right'
+        else:
+            x = (self.lower_bound + self.upper_bound)/2
+            ha = 'center'
+        ax.text(x, 0.5, f"{self}", ha=ha, va='center')
+        #text_outside = self != background_pattern
+        #ax.text(self.lower_bound*(0.98 if text_outside else 1.02), 0.5,
+        #        ('≥' if self.is_lower_bound_closed else '>') + f"{self.lower_bound}",
+        #        ha='right' if text_outside else 'left')
+        #ax.text(self.upper_bound+(1.02 if text_outside else 0.98), 0.5,
+        #        ('≤' if self.is_upper_bound_closed else '<') + f"{self.upper_bound}",
+        #        ha='left' if text_outside else 'right')
 
 
 
