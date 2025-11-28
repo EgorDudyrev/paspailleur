@@ -1802,6 +1802,33 @@ class NgramSetPattern(Pattern):
         return cls([])
 
 
+    def plot(self,
+             ax: plt.Axes = None, foreground_pattern: Self = None,
+             random_state=42, scale_font_with_length: bool = True,
+             **kwargs) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        if ax is None:
+            fig, ax = plt.subplots()
+        foreground_pattern = self if foreground_pattern is None else self.__class__(foreground_pattern)
+        assert foreground_pattern >= self, (f'Foreground pattern must be more precise than the visualised one. '
+                                            f'Got {foreground_pattern=} when visualising {self}')
+
+
+        from wordcloud import WordCloud
+        wc = WordCloud(background_color="white", repeat=False, random_state=random_state)
+        freqs = {
+            ' '.join(ngram): 1 / len(ngram)
+            if scale_font_with_length else 1
+            for ngram in foreground_pattern.value
+        }
+        wc.generate_from_frequencies(freqs)
+        activated = {' '.join(ngram) for ngram in self.value}
+        wc.layout_ = [entry[:-1]+(entry[-1] if entry[0][0] in activated else 'lightgray',) for entry in wc.layout_]
+
+        ax.axis('off')
+        ax.imshow(wc, interpolation="bilinear")
+
+
 class CartesianPattern(Pattern):
     """
     A class representing a Cartesian product of multiple dimensions as a pattern.
