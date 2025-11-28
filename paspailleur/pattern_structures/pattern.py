@@ -1,5 +1,7 @@
 from typing import TypeVar, Self, Optional, Literal
 
+import matplotlib.pyplot as plt
+
 
 class Pattern:
     """
@@ -755,3 +757,8 @@ class Pattern:
         None  # Assuming no maximal atomic patterns are defined
         """
         return None
+
+
+    def plot(self, ax: plt.Axes = None, background_pattern: Self = None, **kwargs) -> None:
+        """Visualise the pattern via Matplotlib.pyplot"""
+        raise NotImplementedError

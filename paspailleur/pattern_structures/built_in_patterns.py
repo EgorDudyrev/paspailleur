@@ -1,10 +1,11 @@
 import math
 from builtins import set
-from typing import Self, Collection, Optional, Sequence, Type, Literal
+from typing import Self, Collection, Optional, Type, Literal
 from numbers import Number
 from frozendict import frozendict
 import re
 
+from matplotlib import pyplot as plt
 
 from .pattern import Pattern
 
@@ -255,6 +256,44 @@ class ItemSetPattern(Pattern):
         """
         return cls(frozenset())
 
+    def plot(
+            self, ax: plt.Axes = None, background_pattern: Self = None,
+            cmap=plt.cm.get_cmap('Accent'), vals_per_row: int = None,
+            **kwargs
+    ) -> None:
+        """Visualise the pattern with Matplotlib.pyplot.
+
+        IMPORTANT: background_pattern parameter is not used here.
+        """
+        if ax is None:
+            fig, ax = plt.subplots()
+        vals_per_row = len(self.value) if vals_per_row is None else vals_per_row
+
+        vals = sorted(self.value)
+        self._plot_rectangles(
+            ax, vals, vals_per_row,
+            [cmap(i) for i in range(len(vals))], [None for _ in vals], [True for _ in vals]
+        )
+
+
+    @staticmethod
+    def _plot_rectangles(
+            ax: plt.Axes, values: list, n_vals_per_row: int,
+            colors: list, hatches: list, fills: list[bool],
+    ):
+        ax.set_xlim((0, n_vals_per_row))
+        ax.set_ylim((0, math.ceil(len(values) / n_vals_per_row)))
+        ax.set_xticks([]); ax.set_yticks([])
+        ax.axis('off')
+
+        for i, v in enumerate(values):
+            x, y = i % n_vals_per_row, i // n_vals_per_row
+            rect = plt.Rectangle((x, y), 1, 1, color=colors[i],
+                                 hatch=hatches[i], fill=fills[i])
+            ax.add_patch(rect)
+            ax.text(x + 0.5, y + 0.5, v, ha='center', va='center')
+
+
 
 class CategorySetPattern(ItemSetPattern):
     """
@@ -502,6 +541,29 @@ class CategorySetPattern(ItemSetPattern):
         assert self.min_pattern is not None, f"Length of pattern of {self.__class__} " \
                                              f"class cannot be computed without the predefined min_pattern value."
         return len(self.min_pattern.value) - len(self.value)
+
+    def plot(
+            self, ax: plt.Axes = None, background_pattern: Self = None,
+            cmap=plt.cm.get_cmap('Accent'), vals_per_row: int = None,
+            **kwargs
+    ) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        if ax is None:
+            fig, ax = plt.subplots()
+        if background_pattern is not None:
+            assert background_pattern <= self
+        else:
+            background_pattern = self
+
+        vals_per_row = len(background_pattern.value) if vals_per_row is None else vals_per_row
+        vals = sorted(background_pattern.value)
+        actives = [v in self.value for v in vals]
+        self._plot_rectangles(
+            ax, vals, n_vals_per_row=vals_per_row,
+            colors=[cmap(i) if is_active else 'lightgray' for i, is_active in enumerate(actives)],
+            fills=actives,
+            hatches=[None if is_active else 'XXX' for is_active in actives],
+        )
 
 
 class IntervalPattern(Pattern):
@@ -1106,6 +1168,39 @@ class IntervalPattern(Pattern):
         {...}
         """
         return {self.max_pattern}
+
+    def plot(self, ax: plt.Axes = None, background_pattern: Self = None, **kwargs) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        if ax is None:
+            fig, ax = plt.subplots()
+        if background_pattern is not None:
+            assert background_pattern <= self
+        else:
+            background_pattern = self
+
+        ax.set_xlim(background_pattern.lower_bound, background_pattern.upper_bound)
+        ax.set_ylim(0, 1)
+        ax.set_yticks([])
+        for spine in ['left', 'right', 'top']:
+            ax.spines[spine].set_visible(False)
+
+        rect = plt.Rectangle((self.lower_bound, 0), self.upper_bound - self.lower_bound, 1)
+        ax.add_patch(rect)
+        ax.axvline(
+            self.lower_bound,
+            linestyle='-' if self.is_lower_bound_closed else '--',
+            linewidth=2 * (2 if self.is_lower_bound_closed else 1),
+            color='k'
+        )
+        ax.axvline(
+            self.upper_bound,
+            linestyle='-' if self.is_upper_bound_closed else '--',
+            linewidth=2 * (2 if self.is_upper_bound_closed else 1),
+            color='k'
+        )
+
+
+
 
 
 class ClosedIntervalPattern(IntervalPattern):
