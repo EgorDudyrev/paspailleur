@@ -1169,62 +1169,62 @@ class IntervalPattern(Pattern):
         """
         return {self.max_pattern}
 
-    def plot(self, ax: plt.Axes = None, background_pattern: Self = None, face_color='lightblue', **kwargs) -> None:
+    def plot(self, ax: plt.Axes = None, background_pattern: Self = None, face_color='lightblue', xlim=None, **kwargs) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
-        if ax is None:
-            fig, ax = plt.subplots()
-        if background_pattern is not None:
-            background_pattern = self.__class__(background_pattern)
-            assert background_pattern <= self, \
-                f'Background pattern "{background_pattern}" must be less precise than the visualised one "{self}"'
-        else:
-            background_pattern = self
+        ax = plt.subplots()[1] if ax is None else ax
 
-        ax.set_xlim(background_pattern.lower_bound, background_pattern.upper_bound)
+        if xlim is None:
+            xlim = self.lower_bound * 0.9, self.upper_bound * 1.1
+        elif isinstance(xlim, IntervalPattern):
+            xlim = xlim.lower_bound, xlim.upper_bound
+
+        if xlim == (-math.inf, math.inf):
+            xlim = 0, 5
+        elif xlim[0] == -math.inf:  # and xlim[1] < inf
+            xlim = xlim[1]*0.8, xlim[1]
+        elif xlim[1] == math.inf:
+            xlim = xlim[0], xlim[0] * 1.2
+
+
+        lb = max(self.lower_bound, xlim[0])
+        ub = min(self.upper_bound, xlim[1])
+        rect = plt.Rectangle((lb, 0), ub - lb, 1, color=face_color)
+        ax.add_patch(rect)
+        if self.lower_bound > -math.inf:
+            ax.axvline(
+                self.lower_bound,
+                linestyle='-' if self.is_lower_bound_closed else '--',
+                linewidth=2 * (2 if self.is_lower_bound_closed else 1),
+                color='k'
+            )
+        if self.upper_bound < math.inf:
+            ax.axvline(
+                self.upper_bound,
+                linestyle='-' if self.is_upper_bound_closed else '--',
+                linewidth=2 * (2 if self.is_upper_bound_closed else 1),
+                color='k'
+            )
+
+        ax.set_xlim(*xlim)
         ax.set_ylim(0, 1)
         ax.set_yticks([])
         for spine in ['left', 'right', 'top']:
             ax.spines[spine].set_visible(False)
 
-        rect = plt.Rectangle((self.lower_bound, 0), self.upper_bound - self.lower_bound, 1, color=face_color)
-        ax.add_patch(rect)
-        ax.axvline(
-            self.lower_bound,
-            linestyle='-' if self.is_lower_bound_closed else '--',
-            linewidth=2 * (2 if self.is_lower_bound_closed else 1),
-            color='k'
-        )
-        ax.axvline(
-            self.upper_bound,
-            linestyle='-' if self.is_upper_bound_closed else '--',
-            linewidth=2 * (2 if self.is_upper_bound_closed else 1),
-            color='k'
-        )
-
-        left_width = self.lower_bound - background_pattern.lower_bound
-        inner_width = self.upper_bound - self.lower_bound
-        right_width = background_pattern.upper_bound - self.upper_bound
+        left_width = lb - xlim[0]
+        inner_width = ub - lb
+        right_width = xlim[1] - ub
         max_width = max(left_width, inner_width, right_width)
         if right_width == max_width:
-            x = self.upper_bound*1.05
+            x = ub*1.01
             ha = 'left'
         elif left_width == max_width:
-            x = self.lower_bound * 0.95
+            x = lb * 0.99
             ha = 'right'
         else:
-            x = (self.lower_bound + self.upper_bound)/2
+            x = (lb+ub)/2
             ha = 'center'
         ax.text(x, 0.5, f"{self}", ha=ha, va='center')
-        #text_outside = self != background_pattern
-        #ax.text(self.lower_bound*(0.98 if text_outside else 1.02), 0.5,
-        #        ('≥' if self.is_lower_bound_closed else '>') + f"{self.lower_bound}",
-        #        ha='right' if text_outside else 'left')
-        #ax.text(self.upper_bound+(1.02 if text_outside else 0.98), 0.5,
-        #        ('≤' if self.is_upper_bound_closed else '<') + f"{self.upper_bound}",
-        #        ha='left' if text_outside else 'right')
-
-
-
 
 
 class ClosedIntervalPattern(IntervalPattern):
