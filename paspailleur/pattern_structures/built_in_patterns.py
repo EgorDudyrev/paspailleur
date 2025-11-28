@@ -258,17 +258,17 @@ class ItemSetPattern(Pattern):
         return cls(frozenset())
 
     def plot(
-            self, ax: plt.Axes = None, foreground_pattern: Self = None, type_: Literal['grid', 'wordcloud'] = 'wordcloud',
+            self, ax: plt.Axes = None, superpattern: Self = None, type_: Literal['grid', 'wordcloud'] = 'wordcloud',
             cmap=plt.cm.get_cmap('Accent'), vals_per_row: int = None,
             random_state=42, scale_font_with_length: bool = True,
             **kwargs
     ) -> None:
         """Visualise the pattern with Matplotlib.pyplot"""
         ax = plt.subplots()[1] if ax is None else ax
-        foreground_pattern = self.__class__(foreground_pattern) if foreground_pattern is not None else self
+        superpattern = self.__class__(superpattern) if superpattern is not None else self
 
         if type_ == 'grid':
-            vals = sorted(foreground_pattern.value)
+            vals = sorted(superpattern.value)
             vals_per_row = len(vals) if vals_per_row is None else vals_per_row
             activated = [v in self.value for v in vals]
             self._plot_rectangles(
@@ -278,7 +278,7 @@ class ItemSetPattern(Pattern):
                 activated
             )
         if type_ == 'wordcloud':
-            self._plot_wordcloud(ax, foreground_pattern, random_state, scale_font_with_length)
+            self._plot_wordcloud(ax, superpattern, random_state, scale_font_with_length)
 
 
     @staticmethod
@@ -300,7 +300,7 @@ class ItemSetPattern(Pattern):
 
     def _plot_wordcloud(
             self, ax: plt.Axes,
-            foreground_pattern: Self,
+            superpattern: Self,
             random_state: int, scale_font_with_length: bool
     ) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
@@ -309,7 +309,7 @@ class ItemSetPattern(Pattern):
         freqs = {
             f"{item}": 1 / len(item)
             if scale_font_with_length else 1
-            for item in foreground_pattern.value
+            for item in superpattern.value
         }
         wc.generate_from_frequencies(freqs)
         activated = {f"{item}" for item in self.value}
@@ -569,18 +569,18 @@ class CategorySetPattern(ItemSetPattern):
         return len(self.min_pattern.value) - len(self.value)
 
     def plot(
-            self, ax: plt.Axes = None, background_pattern: Self = None, type_: Literal['grid', 'wordcloud'] = 'wordcloud',
+            self, ax: plt.Axes = None, subpattern: Self = None, type_: Literal['grid', 'wordcloud'] = 'wordcloud',
             cmap=plt.cm.get_cmap('Accent'), vals_per_row: int = None,
             random_state: int = 42, scale_font_with_length: bool = True,
             **kwargs
     ) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
         ax = plt.subplots()[1] if ax is None else ax
-        background_pattern = self.__class__(background_pattern) if background_pattern is not None else self
+        subpattern = self.__class__(subpattern) if subpattern is not None else self
 
         if type_ == 'grid':
-            vals_per_row = len(background_pattern.value) if vals_per_row is None else vals_per_row
-            vals = sorted(background_pattern.value)
+            vals_per_row = len(subpattern.value) if vals_per_row is None else vals_per_row
+            vals = sorted(subpattern.value)
             actives = [v in self.value for v in vals]
             self._plot_rectangles(
                 ax, vals, n_vals_per_row=vals_per_row,
@@ -589,7 +589,7 @@ class CategorySetPattern(ItemSetPattern):
                 hatches=[None if is_active else 'XXX' for is_active in actives],
             )
         if type_ == 'wordcloud':
-            self._plot_wordcloud(ax, background_pattern, random_state, scale_font_with_length)
+            self._plot_wordcloud(ax, subpattern, random_state, scale_font_with_length)
 
 
 class IntervalPattern(Pattern):
@@ -1195,7 +1195,7 @@ class IntervalPattern(Pattern):
         """
         return {self.max_pattern}
 
-    def plot(self, ax: plt.Axes = None, background_pattern: Self = None, face_color='lightblue', xlim=None, **kwargs) -> None:
+    def plot(self, ax: plt.Axes = None, subpattern: Self = None, face_color='lightblue', xlim=None, **kwargs) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
         ax = plt.subplots()[1] if ax is None else ax
 
@@ -1829,15 +1829,15 @@ class NgramSetPattern(Pattern):
 
 
     def plot(self,
-             ax: plt.Axes = None, foreground_pattern: Self = None,
+             ax: plt.Axes = None, superpattern: Self = None,
              random_state=42, scale_font_with_length: bool = True,
              **kwargs) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
         if ax is None:
             fig, ax = plt.subplots()
-        foreground_pattern = self if foreground_pattern is None else self.__class__(foreground_pattern)
-        assert foreground_pattern >= self, (f'Foreground pattern must be more precise than the visualised one. '
-                                            f'Got {foreground_pattern=} when visualising {self}')
+        superpattern = self if superpattern is None else self.__class__(superpattern)
+        assert superpattern >= self, (f'Foreground pattern must be more precise than the visualised one. '
+                                            f'Got {superpattern=} when visualising {self}')
 
 
         from wordcloud import WordCloud
@@ -1845,7 +1845,7 @@ class NgramSetPattern(Pattern):
         freqs = {
             ' '.join(ngram): 1 / len(ngram)
             if scale_font_with_length else 1
-            for ngram in foreground_pattern.value
+            for ngram in superpattern.value
         }
         wc.generate_from_frequencies(freqs)
         activated = {' '.join(ngram) for ngram in self.value}
@@ -2269,7 +2269,7 @@ class CartesianPattern(Pattern):
     def __iter__(self):
         return iter(self.value.items())
 
-    def plot(self, fig=None, axes: list[plt.Axes] = None, background_pattern: Self = None, foreground_pattern: Self = None, n_dimensions_per_row: int = None, params_per_dimension: dict = None, **kwargs) -> None:
+    def plot(self, fig=None, axes: list[plt.Axes] = None, subpattern: Self = None, superpattern: Self = None, n_dimensions_per_row: int = None, params_per_dimension: dict = None, **kwargs) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
         if axes is None:
             fig = plt.figure() if fig is None else fig
@@ -2281,12 +2281,12 @@ class CartesianPattern(Pattern):
         for ax in axes[len(self.value):]:
             ax.axis('off')
 
-        background_pattern = self.__class__(background_pattern) if background_pattern is not None else self
-        foreground_pattern = self.__class__(foreground_pattern) if foreground_pattern is not None else self
+        subpattern = self.__class__(subpattern) if subpattern is not None else self
+        superpattern = self.__class__(superpattern) if superpattern is not None else self
         params_per_dimension = dict() if params_per_dimension is None else params_per_dimension
 
         for dim, ax in zip(self.value, axes):
             ax.set_title(dim)
-            self.value[dim].plot(ax=ax, foreground_pattern=foreground_pattern[dim], background_pattern=background_pattern[dim], **params_per_dimension.get(dim, dict()))
+            self.value[dim].plot(ax=ax, superpattern=superpattern[dim], subpattern=subpattern[dim], **params_per_dimension.get(dim, dict()))
         fig.subplots_adjust()
         

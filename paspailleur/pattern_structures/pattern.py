@@ -759,6 +759,6 @@ class Pattern:
         return None
 
 
-    def plot(self, ax: plt.Axes = None, background_pattern: Self = None, **kwargs) -> None:
+    def plot(self, ax: plt.Axes = None, subpattern: Self = None, superpattern: Self = None, **kwargs) -> None:
         """Visualise the pattern via Matplotlib.pyplot"""
         raise NotImplementedError
