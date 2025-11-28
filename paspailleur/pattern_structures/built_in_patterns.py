@@ -257,23 +257,27 @@ class ItemSetPattern(Pattern):
         return cls(frozenset())
 
     def plot(
-            self, ax: plt.Axes = None, background_pattern: Self = None,
+            self, ax: plt.Axes = None, foreground_pattern: Self = None, type_: Literal['grid', 'wordcloud'] = 'wordcloud',
             cmap=plt.cm.get_cmap('Accent'), vals_per_row: int = None,
+            random_state=42, scale_font_with_length: bool = True,
             **kwargs
     ) -> None:
-        """Visualise the pattern with Matplotlib.pyplot.
+        """Visualise the pattern with Matplotlib.pyplot"""
+        ax = plt.subplots()[1] if ax is None else ax
+        foreground_pattern = self.__class__(foreground_pattern) if foreground_pattern is not None else self
 
-        IMPORTANT: background_pattern parameter is not used here.
-        """
-        if ax is None:
-            fig, ax = plt.subplots()
-        vals_per_row = len(self.value) if vals_per_row is None else vals_per_row
-
-        vals = sorted(self.value)
-        self._plot_rectangles(
-            ax, vals, vals_per_row,
-            [cmap(i) for i in range(len(vals))], [None for _ in vals], [True for _ in vals]
-        )
+        if type_ == 'grid':
+            vals = sorted(foreground_pattern.value)
+            vals_per_row = len(vals) if vals_per_row is None else vals_per_row
+            activated = [v in self.value for v in vals]
+            self._plot_rectangles(
+                ax, vals, vals_per_row,
+                [cmap(i) if is_active else 'lightgray' for i, is_active in enumerate(activated)],
+                [None if is_active else 'XXX' for is_active in activated],
+                activated
+            )
+        if type_ == 'wordcloud':
+            self._plot_wordcloud(ax, foreground_pattern, random_state, scale_font_with_length)
 
 
     @staticmethod
@@ -292,6 +296,27 @@ class ItemSetPattern(Pattern):
                                  hatch=hatches[i], fill=fills[i])
             ax.add_patch(rect)
             ax.text(x + 0.5, y + 0.5, v, ha='center', va='center')
+
+    def _plot_wordcloud(
+            self, ax: plt.Axes,
+            foreground_pattern: Self,
+            random_state: int, scale_font_with_length: bool
+    ) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        from wordcloud import WordCloud
+        wc = WordCloud(background_color="white", repeat=False, random_state=random_state)
+        freqs = {
+            f"{item}": 1 / len(item)
+            if scale_font_with_length else 1
+            for item in foreground_pattern.value
+        }
+        wc.generate_from_frequencies(freqs)
+        activated = {f"{item}" for item in self.value}
+        wc.layout_ = [entry[:-1]+(entry[-1] if entry[0][0] in activated else 'lightgray',) for entry in wc.layout_]
+
+        ax.axis('off')
+        ax.imshow(wc, interpolation="bilinear")
+
 
 
 
@@ -543,27 +568,27 @@ class CategorySetPattern(ItemSetPattern):
         return len(self.min_pattern.value) - len(self.value)
 
     def plot(
-            self, ax: plt.Axes = None, background_pattern: Self = None,
+            self, ax: plt.Axes = None, background_pattern: Self = None, type_: Literal['grid', 'wordcloud'] = 'wordcloud',
             cmap=plt.cm.get_cmap('Accent'), vals_per_row: int = None,
+            random_state: int = 42, scale_font_with_length: bool = True,
             **kwargs
     ) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
-        if ax is None:
-            fig, ax = plt.subplots()
-        if background_pattern is not None:
-            assert background_pattern <= self
-        else:
-            background_pattern = self
+        ax = plt.subplots()[1] if ax is None else ax
+        background_pattern = self.__class__(background_pattern) if background_pattern is not None else self
 
-        vals_per_row = len(background_pattern.value) if vals_per_row is None else vals_per_row
-        vals = sorted(background_pattern.value)
-        actives = [v in self.value for v in vals]
-        self._plot_rectangles(
-            ax, vals, n_vals_per_row=vals_per_row,
-            colors=[cmap(i) if is_active else 'lightgray' for i, is_active in enumerate(actives)],
-            fills=actives,
-            hatches=[None if is_active else 'XXX' for is_active in actives],
-        )
+        if type_ == 'grid':
+            vals_per_row = len(background_pattern.value) if vals_per_row is None else vals_per_row
+            vals = sorted(background_pattern.value)
+            actives = [v in self.value for v in vals]
+            self._plot_rectangles(
+                ax, vals, n_vals_per_row=vals_per_row,
+                colors=[cmap(i) if is_active else 'lightgray' for i, is_active in enumerate(actives)],
+                fills=actives,
+                hatches=[None if is_active else 'XXX' for is_active in actives],
+            )
+        if type_ == 'wordcloud':
+            self._plot_wordcloud(ax, background_pattern, random_state, scale_font_with_length)
 
 
 class IntervalPattern(Pattern):
