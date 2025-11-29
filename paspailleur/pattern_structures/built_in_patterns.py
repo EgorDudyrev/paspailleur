@@ -2269,8 +2269,26 @@ class CartesianPattern(Pattern):
     def __iter__(self):
         return iter(self.value.items())
 
-    def plot(self, fig=None, axes: list[plt.Axes] = None, subpattern: Self = None, superpattern: Self = None, n_dimensions_per_row: int = None, params_per_dimension: dict = None, **kwargs) -> None:
+    def plot(
+            self, fig=None, axes: list[plt.Axes] = None, n_dimensions_per_row: int = None,
+            subpattern: Self = None, superpattern: Self = None,
+            dimension_params: dict = None, common_params: dict = None,
+            dimension_name_place: Literal['xlabel', 'ylabel', 'title', None] = 'title',
+            dimension_name_params: dict = None,
+            **kwargs
+    ) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
+        dimension_params = dict() if dimension_params is None else dimension_params
+        common_params = dict() if common_params is None else common_params
+        for dim in self.value:
+            if dim not in dimension_params:
+                dimension_params[dim] = dict()
+        for dim in dimension_params:
+            for k, v in common_params.items():
+                if k not in dimension_params[dim]:
+                    dimension_params[dim][k] = v
+        dimension_name_params = dict() if dimension_name_params is None else dimension_name_params
+
         if axes is None:
             fig = plt.figure() if fig is None else fig
             n_dimensions_per_row = len(self.value) if n_dimensions_per_row is None else n_dimensions_per_row
@@ -2283,11 +2301,16 @@ class CartesianPattern(Pattern):
 
         subpattern = self.__class__(subpattern) if subpattern is not None else self
         superpattern = self.__class__(superpattern) if superpattern is not None else self
-        params_per_dimension = dict() if params_per_dimension is None else params_per_dimension
 
         for dim, ax in zip(self.value, axes):
-            ax.set_title(dim)
-            self.value[dim].plot(ax=ax, superpattern=superpattern[dim], subpattern=subpattern[dim], **params_per_dimension.get(dim, dict()))
+            self.value[dim].plot(ax=ax, superpattern=superpattern[dim], subpattern=subpattern[dim], **dimension_params[dim])
+
+            if dimension_name_place == 'xlabel':
+                ax.set_xlabel(dim, **dimension_name_params)
+            if dimension_name_place == 'ylabel':
+                ax.set_ylabel(dim, **dimension_name_params)
+            if dimension_name_place == 'title':
+                ax.set_title(dim, **dimension_name_params)
 
         if fig: fig.subplots_adjust()
 
@@ -2319,23 +2342,19 @@ class HyperrectanglePattern(CartesianPattern):
         return frozendict(value_new)
 
 
-    def plot(self, fig=None, axes: list[plt.Axes] = None, n_dimensions_per_row: int = 1, params_per_dimension: dict = None,
-             y_label_params=None, **kwargs) -> None:
+    def plot(
+            self, fig=None, axes: list[plt.Axes] = None, n_dimensions_per_row: int = 1,
+            dimension_params: dict = None,  common_params: dict = None,
+            dimension_name_place: Literal['xlabel', 'ylabel', 'title', None] = 'ylabel',
+            dimension_name_params: dict = None,
+            **kwargs
+    ) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
-        y_label_params = {'rotation': 0, 'ha': 'right'} if y_label_params is None else y_label_params
-        params_per_dimension = dict() if params_per_dimension is None else params_per_dimension
-
-        if axes is None:
-            fig = plt.figure() if fig is None else fig
-            n_dimensions_per_row = len(self.value) if n_dimensions_per_row is None else n_dimensions_per_row
-            axes = fig.subplots(math.ceil(len(self.value)/n_dimensions_per_row), n_dimensions_per_row)
-        if isinstance(axes, np.ndarray):
-            axes = axes.flatten()
-        for ax in axes[len(self.value):]:
-            ax.axis('off')
-
-        for dim, ax in zip(self.value, axes):
-            ax.set_ylabel(dim, **y_label_params)
-            self.value[dim].plot(ax=ax, **params_per_dimension.get(dim, dict()))
-
-        if fig: fig.subplots_adjust()
+        if dimension_name_params is None and dimension_name_place == 'ylabel':
+            dimension_name_params = {'rotation': 0, 'ha': 'right'}
+        super().plot(
+            fig=fig, axes=axes, n_dimensions_per_row=n_dimensions_per_row,
+            dimension_params=dimension_params, common_params=common_params,
+            dimension_name_place=dimension_name_place, dimension_name_params=dimension_name_params,
+            **kwargs
+        )
