@@ -2288,5 +2288,6 @@ class CartesianPattern(Pattern):
         for dim, ax in zip(self.value, axes):
             ax.set_title(dim)
             self.value[dim].plot(ax=ax, superpattern=superpattern[dim], subpattern=subpattern[dim], **params_per_dimension.get(dim, dict()))
-        fig.subplots_adjust()
+
+        if fig: fig.subplots_adjust()
         
