@@ -1951,7 +1951,7 @@ class CartesianPattern(Pattern):
             assert not non_processed_dimensions, \
                 f"Cannot preprocess dimensions {non_processed_dimensions} of CartesianPattern given by {value}. " \
                 f"Either convert these dimensional descriptions to Pattern classes " \
-                f"or define `CartesianPattern.DimensionTypes` class variable."
+                f"or define `{cls.__name__}.DimensionTypes` class variable."
 
         value = dict(value)
         for k in list(value):
@@ -2290,4 +2290,52 @@ class CartesianPattern(Pattern):
             self.value[dim].plot(ax=ax, superpattern=superpattern[dim], subpattern=subpattern[dim], **params_per_dimension.get(dim, dict()))
 
         if fig: fig.subplots_adjust()
-        
+
+
+class HyperrectanglePattern(CartesianPattern):
+    PatternValueType = frozendict[str, IntervalPattern]
+    DimensionTypes: dict[str, Type[IntervalPattern]] = None  # required for parsing stings of dimensional patterns
+
+    def __init__(self, value) -> None:
+        super().__init__(value)
+        assert {isinstance(dimension_value, IntervalPattern) for dimension_value in self.value.values()}, \
+            ("HyperrectanglePattern can only represent multidimensional Interval patterns. "
+             f"Received non-interval dimensions: {[k for k in self.value.keys() if not isinstance(self.value[k], IntervalPattern)]}.")
+
+    def preprocess_value(cls, value) -> PatternValueType:
+        value_new = dict()
+        unprocessed = set()
+        for k, v in value.items():
+            if isinstance(v, IntervalPattern):
+                value_new[k] = v
+                continue
+            try:
+                value_new[k] = IntervalPattern(v)
+            except:
+                unprocessed.add(k)
+        if unprocessed:
+            raise ValueError(f"Error when preprocessing HyperrectanglePattern value. "
+                             f"The following dimensions could not have been converted to IntervalPattern: {dict([(k, value[k]) for k in unprocessed])}.")
+        return frozendict(value_new)
+
+
+    def plot(self, fig=None, axes: list[plt.Axes] = None, n_dimensions_per_row: int = 1, params_per_dimension: dict = None,
+             y_label_params=None, **kwargs) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        y_label_params = {'rotation': 0, 'ha': 'right'} if y_label_params is None else y_label_params
+        params_per_dimension = dict() if params_per_dimension is None else params_per_dimension
+
+        if axes is None:
+            fig = plt.figure() if fig is None else fig
+            n_dimensions_per_row = len(self.value) if n_dimensions_per_row is None else n_dimensions_per_row
+            axes = fig.subplots(math.ceil(len(self.value)/n_dimensions_per_row), n_dimensions_per_row)
+        if isinstance(axes, np.ndarray):
+            axes = axes.flatten()
+        for ax in axes[len(self.value):]:
+            ax.axis('off')
+
+        for dim, ax in zip(self.value, axes):
+            ax.set_ylabel(dim, **y_label_params)
+            self.value[dim].plot(ax=ax, **params_per_dimension.get(dim, dict()))
+
+        if fig: fig.subplots_adjust()
