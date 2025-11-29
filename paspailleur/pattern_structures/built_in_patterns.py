@@ -1199,18 +1199,7 @@ class IntervalPattern(Pattern):
         """Visualise the pattern via matplotlib.pyplot"""
         ax = plt.subplots()[1] if ax is None else ax
 
-        if xlim is None:
-            xlim = self.lower_bound * 0.9, self.upper_bound * 1.1
-        elif isinstance(xlim, IntervalPattern):
-            xlim = xlim.lower_bound, xlim.upper_bound
-
-        if xlim == (-math.inf, math.inf):
-            xlim = 0, 5
-        elif xlim[0] == -math.inf:  # and xlim[1] < inf
-            xlim = xlim[1]*0.8, xlim[1]
-        elif xlim[1] == math.inf:
-            xlim = xlim[0], xlim[0] * 1.2
-
+        xlim = self._calc_plot_xlim(xlim)
 
         lb = max(self.lower_bound, xlim[0])
         ub = min(self.upper_bound, xlim[1])
@@ -1252,6 +1241,20 @@ class IntervalPattern(Pattern):
             ha = 'center'
         ax.text(x, 0.5, f"{self}", ha=ha, va='center')
 
+    def _calc_plot_xlim(self, xlim: tuple[float, float]) -> tuple[float, float]:
+        """Calculate xlim bounds when plotting the pattern"""
+        if xlim is None:
+            xlim = self.lower_bound * 0.9, self.upper_bound * 1.1
+        elif isinstance(xlim, IntervalPattern):
+            xlim = xlim.lower_bound, xlim.upper_bound
+
+        if xlim == (-math.inf, math.inf):
+            xlim = 0, 5
+        elif xlim[0] == -math.inf:  # and xlim[1] < inf
+            xlim = xlim[1]*0.8, xlim[1]
+        elif xlim[1] == math.inf:
+            xlim = xlim[0], xlim[0] * 1.2
+        return xlim
 
 class ClosedIntervalPattern(IntervalPattern):
     """
@@ -2358,3 +2361,96 @@ class HyperrectanglePattern(CartesianPattern):
             dimension_name_place=dimension_name_place, dimension_name_params=dimension_name_params,
             **kwargs
         )
+
+
+class RectanglePattern(HyperrectanglePattern):
+    def __init__(self, value) -> None:
+        super().__init__(value)
+        assert len(self.value) == 2, 'RectanglePattern should use exactly two dimensions'
+
+    def plot(
+            self, ax: plt.Axes = None, type_: Literal['Rectangle', 'Hyperrectangle'] = 'Rectangle',
+            dimensions_order: list[str] = None, xlim: tuple[float, float] = None, ylim: tuple[float, float] = None,
+            face_color = 'lightblue', face_alpha = 1, face_zorder = 1, label: str = None,
+            edge_color = 'black', edge_linewidth=2, edge_linestyles: tuple[str, str] = ('--', '-'),
+            text_loc: str = 'auto',
+            **kwargs
+    ) -> None:
+        if type_ == 'Hyperrectangle':
+            super().plot(**kwargs)
+            return
+
+        ax = plt.subplots()[1] if ax is None else ax
+        dimensions_order = list(self.value) if dimensions_order is None else dimensions_order
+        xdim, ydim = dimensions_order
+
+        xlim = self.value[xdim]._calc_plot_xlim(xlim)
+        ylim = self.value[ydim]._calc_plot_xlim(ylim)
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
+        ax.set_xlabel(xdim)
+        ax.set_ylabel(ydim)
+
+        # Visualising the face of the rectangle
+        left = max(self.value[xdim].lower_bound, xlim[0])
+        right = min(self.value[xdim].upper_bound, xlim[1])
+        bottom = max(self.value[ydim].lower_bound, ylim[0])
+        top = min(self.value[ydim].upper_bound, ylim[1])
+
+        rect = plt.Rectangle((left, bottom), right - left, top - bottom, linewidth=0,
+                                 facecolor=face_color, alpha=face_alpha, zorder=face_zorder, label=label)
+        ax.add_patch(rect, )
+
+        # Visualising the edges around the rectangle
+        xmin_perc = max(0, (self.value[xdim].lower_bound - xlim[0]) / (xlim[1] - xlim[0]))
+        xmax_perc = min(1, (self.value[xdim].upper_bound - xlim[0]) / (xlim[1] - xlim[0]))
+        ymin_perc = max(0, (self.value[ydim].lower_bound - ylim[0]) / (ylim[1] - ylim[0]))
+        ymax_perc = min(1, (self.value[ydim].upper_bound - ylim[0]) / (ylim[1] - ylim[0]))
+
+        if xlim[0] < left:
+            interval = self.value[xdim]
+            ax.axvline(left, ymin_perc, ymax_perc,
+                       linestyle=edge_linestyles[interval.is_lower_bound_closed], color=edge_color, linewidth=edge_linewidth)
+
+        if right < xlim[1]:
+            interval = self.value[xdim]
+            ax.axvline(right, ymin_perc, ymax_perc,
+                       linestyle=edge_linestyles[interval.is_upper_bound_closed], color=edge_color, linewidth=edge_linewidth)
+
+        if ylim[0] < bottom:
+            interval = self.value[ydim]
+            ax.axhline(bottom, xmin_perc, xmax_perc,
+                       linestyle=edge_linestyles[interval.is_lower_bound_closed], color=edge_color, linewidth=edge_linewidth)
+
+        if top < ylim[1]:
+            interval = self.value[ydim]
+            ax.axhline(top, xmin_perc, xmax_perc,
+                       linestyle=edge_linestyles[interval.is_upper_bound_closed], color=edge_color, linewidth=edge_linewidth)
+
+
+        # Write the text
+        if text_loc:
+            if text_loc == 'auto':
+                left_width, inner_width, right_width = left - xlim[0], right - left, xlim[1] - right
+                max_width = max(left_width, inner_width, right_width)
+
+                text_x_loc = 'left' if left_width == max_width else 'right' if right_width == max_width else 'center'
+
+                bottom_height, inner_height, top_height = bottom - ylim[0], top - bottom, ylim[1] - top
+                max_height = max(bottom_height, inner_height, top_height)
+                text_y_loc = 'bottom' if bottom_height == max_height else 'top' if top_height == max_height else 'center'
+
+            elif text_loc == 'center':
+                text_x_loc, text_y_loc = 'center', 'center'
+            else:
+                text_y_loc, text_x_loc = text_loc.split()
+            assert text_y_loc in {'bottom', 'top', 'center'} and text_x_loc in {'left', 'right', 'center'}, \
+                (f"Cannot parse `text_loc` parameter: {text_loc}. "
+                 f"Provide first the vertical location (i.e. 'bottom', 'top', or 'center') and "
+                 f"then the horisontal location (i.e. 'left', 'right', or 'center').")
+
+            text_x = {'left': left * 0.99, 'right': right * 1.01, 'center': (left+right)/2}[text_x_loc]
+            text_y = {'bottom': bottom * 0.99, 'top': top * 1.01, 'center': (bottom+top)/2}[text_y_loc]
+            text_ha = {'left': 'right', 'right': 'left', 'center': 'center'}[text_x_loc]
+            text_va = {'bottom': 'top', 'top': 'bottom', 'center': 'center'}[text_y_loc]
+            ax.text(text_x, text_y, f"{xdim}: {self.value[xdim]}\n{ydim}: {self.value[ydim]}", ha=text_ha, va=text_va)
