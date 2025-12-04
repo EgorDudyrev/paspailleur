@@ -1,4 +1,5 @@
 import math
+from copy import deepcopy
 from typing import Self, Collection, Optional, Type, Literal
 from numbers import Number
 
@@ -1195,7 +1196,9 @@ class IntervalPattern(Pattern):
         """
         return {self.max_pattern}
 
-    def plot(self, ax: plt.Axes = None, subpattern: Self = None, face_color='lightblue', xlim=None, **kwargs) -> None:
+    def plot(self, ax: plt.Axes = None, subpattern: Self = None, face_color='lightblue', xlim=None, text_loc: Literal['auto', 'left', 'right', 'center', None]='auto',
+             edge_linewidth=2, edge_linestyles: tuple[str, str] = ('--', '-'),
+             **kwargs) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
         ax = plt.subplots()[1] if ax is None else ax
 
@@ -1208,15 +1211,15 @@ class IntervalPattern(Pattern):
         if self.lower_bound > -math.inf:
             ax.axvline(
                 self.lower_bound,
-                linestyle='-' if self.is_lower_bound_closed else '--',
-                linewidth=2 * (2 if self.is_lower_bound_closed else 1),
+                linestyle=edge_linestyles[self.is_lower_bound_closed],
+                linewidth=edge_linewidth,
                 color='k'
             )
         if self.upper_bound < math.inf:
             ax.axvline(
                 self.upper_bound,
-                linestyle='-' if self.is_upper_bound_closed else '--',
-                linewidth=2 * (2 if self.is_upper_bound_closed else 1),
+                linestyle=edge_linestyles[self.is_upper_bound_closed],
+                linewidth=edge_linewidth,
                 color='k'
             )
 
@@ -1226,20 +1229,17 @@ class IntervalPattern(Pattern):
         for spine in ['left', 'right', 'top']:
             ax.spines[spine].set_visible(False)
 
-        left_width = lb - xlim[0]
-        inner_width = ub - lb
-        right_width = xlim[1] - ub
-        max_width = max(left_width, inner_width, right_width)
-        if right_width == max_width:
-            x = ub*1.01
-            ha = 'left'
-        elif left_width == max_width:
-            x = lb * 0.99
-            ha = 'right'
-        else:
-            x = (lb+ub)/2
-            ha = 'center'
-        ax.text(x, 0.5, f"{self}", ha=ha, va='center')
+
+        if text_loc == 'auto':
+            left_width = lb - xlim[0]
+            inner_width = ub - lb
+            right_width = xlim[1] - ub
+            max_width = max(left_width, inner_width, right_width)
+            text_loc = 'right' if right_width == max_width else 'left' if left_width == max_width else 'center'
+
+        if text_loc is not None:
+            x, ha = {'right': (ub*1.01, 'left'), 'left': (lb*0.99, 'right'), 'center': ((lb+ub)/2, 'center')}[text_loc]
+            ax.text(x, 0.5, f"{self}", ha=ha, va='center')
 
     def _calc_plot_xlim(self, xlim: tuple[float, float]) -> tuple[float, float]:
         """Calculate xlim bounds when plotting the pattern"""
@@ -2281,8 +2281,8 @@ class CartesianPattern(Pattern):
             **kwargs
     ) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
-        dimension_params = dict() if dimension_params is None else dimension_params
-        common_params = dict() if common_params is None else common_params
+        dimension_params = dict() if dimension_params is None else deepcopy(dimension_params)
+        common_params = dict() if common_params is None else deepcopy(common_params)
         for dim in self.value:
             if dim not in dimension_params:
                 dimension_params[dim] = dict()
