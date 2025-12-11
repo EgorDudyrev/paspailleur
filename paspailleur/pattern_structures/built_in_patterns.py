@@ -1,10 +1,13 @@
 import math
-from builtins import set
-from typing import Self, Collection, Optional, Sequence, Type, Literal
+from copy import deepcopy
+from typing import Self, Collection, Optional, Type, Literal
 from numbers import Number
+
+import numpy as np
 from frozendict import frozendict
 import re
 
+from matplotlib import pyplot as plt
 
 from .pattern import Pattern
 
@@ -255,6 +258,67 @@ class ItemSetPattern(Pattern):
         """
         return cls(frozenset())
 
+    def plot(
+            self, ax: plt.Axes = None, superpattern: Self = None, type_: Literal['grid', 'wordcloud'] = 'wordcloud',
+            cmap=plt.cm.get_cmap('Accent'), vals_per_row: int = None,
+            random_state=42, scale_font_with_length: bool = True,
+            **kwargs
+    ) -> None:
+        """Visualise the pattern with Matplotlib.pyplot"""
+        ax = plt.gca() if ax is None else ax
+        superpattern = self.__class__(superpattern) if superpattern is not None else self
+
+        if type_ == 'grid':
+            vals = sorted(superpattern.value)
+            vals_per_row = len(vals) if vals_per_row is None else vals_per_row
+            activated = [v in self.value for v in vals]
+            self._plot_rectangles(
+                ax, vals, vals_per_row,
+                [cmap(i) if is_active else 'lightgray' for i, is_active in enumerate(activated)],
+                [None if is_active else 'XXX' for is_active in activated],
+                activated
+            )
+        if type_ == 'wordcloud':
+            self._plot_wordcloud(ax, superpattern, random_state, scale_font_with_length)
+
+
+    @staticmethod
+    def _plot_rectangles(
+            ax: plt.Axes, values: list, n_vals_per_row: int,
+            colors: list, hatches: list, fills: list[bool],
+    ):
+        ax.set_xlim((0, n_vals_per_row))
+        ax.set_ylim((0, math.ceil(len(values) / n_vals_per_row)))
+        ax.set_xticks([]); ax.set_yticks([])
+        ax.axis('off')
+
+        for i, v in enumerate(values):
+            x, y = i % n_vals_per_row, i // n_vals_per_row
+            rect = plt.Rectangle((x, y), 1, 1, color=colors[i],
+                                 hatch=hatches[i], fill=fills[i])
+            ax.add_patch(rect)
+            ax.text(x + 0.5, y + 0.5, v, ha='center', va='center')
+
+    def _plot_wordcloud(
+            self, ax: plt.Axes,
+            superpattern: Self,
+            random_state: int, scale_font_with_length: bool
+    ) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        from wordcloud import WordCloud
+        wc = WordCloud(background_color="white", repeat=False, random_state=random_state)
+        freqs = {
+            f"{item}": 1 / len(item)
+            if scale_font_with_length else 1
+            for item in superpattern.value
+        }
+        wc.generate_from_frequencies(freqs)
+        activated = {f"{item}" for item in self.value}
+        wc.layout_ = [entry[:-1]+(entry[-1] if entry[0][0] in activated else 'lightgray',) for entry in wc.layout_]
+
+        ax.axis('off')
+        ax.imshow(wc, interpolation="bilinear")
+
 
 class CategorySetPattern(ItemSetPattern):
     """
@@ -502,6 +566,29 @@ class CategorySetPattern(ItemSetPattern):
         assert self.min_pattern is not None, f"Length of pattern of {self.__class__} " \
                                              f"class cannot be computed without the predefined min_pattern value."
         return len(self.min_pattern.value) - len(self.value)
+
+    def plot(
+            self, ax: plt.Axes = None, subpattern: Self = None, type_: Literal['grid', 'wordcloud'] = 'wordcloud',
+            cmap=plt.cm.get_cmap('Accent'), vals_per_row: int = None,
+            random_state: int = 42, scale_font_with_length: bool = True,
+            **kwargs
+    ) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        ax = plt.gca() if ax is None else ax
+        subpattern = self.__class__(subpattern) if subpattern is not None else self
+
+        if type_ == 'grid':
+            vals_per_row = len(subpattern.value) if vals_per_row is None else vals_per_row
+            vals = sorted(subpattern.value)
+            actives = [v in self.value for v in vals]
+            self._plot_rectangles(
+                ax, vals, n_vals_per_row=vals_per_row,
+                colors=[cmap(i) if is_active else 'lightgray' for i, is_active in enumerate(actives)],
+                fills=actives,
+                hatches=[None if is_active else 'XXX' for is_active in actives],
+            )
+        if type_ == 'wordcloud':
+            self._plot_wordcloud(ax, subpattern, random_state, scale_font_with_length)
 
 
 class IntervalPattern(Pattern):
@@ -1107,6 +1194,65 @@ class IntervalPattern(Pattern):
         """
         return {self.max_pattern}
 
+    def plot(self, ax: plt.Axes = None, subpattern: Self = None, face_color='lightblue', xlim=None, text_loc: Literal['auto', 'left', 'right', 'center', None]='auto',
+             edge_linewidth=2, edge_linestyles: tuple[str, str] = ('--', '-'),
+             **kwargs) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        ax = plt.gca() if ax is None else ax
+
+        xlim = self._calc_plot_xlim(xlim)
+
+        lb = max(self.lower_bound, xlim[0])
+        ub = min(self.upper_bound, xlim[1])
+        rect = plt.Rectangle((lb, 0), ub - lb, 1, color=face_color)
+        ax.add_patch(rect)
+        if self.lower_bound > -math.inf:
+            ax.axvline(
+                self.lower_bound,
+                linestyle=edge_linestyles[self.is_lower_bound_closed],
+                linewidth=edge_linewidth,
+                color='k'
+            )
+        if self.upper_bound < math.inf:
+            ax.axvline(
+                self.upper_bound,
+                linestyle=edge_linestyles[self.is_upper_bound_closed],
+                linewidth=edge_linewidth,
+                color='k'
+            )
+
+        ax.set_xlim(*xlim)
+        ax.set_ylim(0, 1)
+        ax.set_yticks([])
+        for spine in ['left', 'right', 'top']:
+            ax.spines[spine].set_visible(False)
+
+
+        if text_loc == 'auto':
+            left_width = lb - xlim[0]
+            inner_width = ub - lb
+            right_width = xlim[1] - ub
+            max_width = max(left_width, inner_width, right_width)
+            text_loc = 'right' if right_width == max_width else 'left' if left_width == max_width else 'center'
+
+        if text_loc is not None:
+            x, ha = {'right': (ub*1.01, 'left'), 'left': (lb*0.99, 'right'), 'center': ((lb+ub)/2, 'center')}[text_loc]
+            ax.text(x, 0.5, f"{self}", ha=ha, va='center')
+
+    def _calc_plot_xlim(self, xlim: tuple[float, float]) -> tuple[float, float]:
+        """Calculate xlim bounds when plotting the pattern"""
+        if xlim is None:
+            xlim = self.lower_bound * 0.9, self.upper_bound * 1.1
+        elif isinstance(xlim, IntervalPattern):
+            xlim = xlim.lower_bound, xlim.upper_bound
+
+        if xlim == (-math.inf, math.inf):
+            xlim = 0, 5
+        elif xlim[0] == -math.inf:  # and xlim[1] < inf
+            xlim = xlim[1]*0.8, xlim[1]
+        elif xlim[1] == math.inf:
+            xlim = xlim[0], xlim[0] * 1.2
+        return xlim
 
 class ClosedIntervalPattern(IntervalPattern):
     """
@@ -1683,6 +1829,33 @@ class NgramSetPattern(Pattern):
         return cls([])
 
 
+    def plot(self,
+             ax: plt.Axes = None, superpattern: Self = None,
+             random_state=42, scale_font_with_length: bool = True,
+             **kwargs) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        ax = plt.gca() if ax is None else ax
+
+        superpattern = self if superpattern is None else self.__class__(superpattern)
+        assert superpattern >= self, (f'Foreground pattern must be more precise than the visualised one. '
+                                            f'Got {superpattern=} when visualising {self}')
+
+
+        from wordcloud import WordCloud
+        wc = WordCloud(background_color="white", repeat=False, random_state=random_state)
+        freqs = {
+            ' '.join(ngram): 1 / len(ngram)
+            if scale_font_with_length else 1
+            for ngram in superpattern.value
+        }
+        wc.generate_from_frequencies(freqs)
+        activated = {' '.join(ngram) for ngram in self.value}
+        wc.layout_ = [entry[:-1]+(entry[-1] if entry[0][0] in activated else 'lightgray',) for entry in wc.layout_]
+
+        ax.axis('off')
+        ax.imshow(wc, interpolation="bilinear")
+
+
 class CartesianPattern(Pattern):
     """
     A class representing a Cartesian product of multiple dimensions as a pattern.
@@ -1779,7 +1952,7 @@ class CartesianPattern(Pattern):
             assert not non_processed_dimensions, \
                 f"Cannot preprocess dimensions {non_processed_dimensions} of CartesianPattern given by {value}. " \
                 f"Either convert these dimensional descriptions to Pattern classes " \
-                f"or define `CartesianPattern.DimensionTypes` class variable."
+                f"or define `{cls.__name__}.DimensionTypes` class variable."
 
         value = dict(value)
         for k in list(value):
@@ -2096,3 +2269,188 @@ class CartesianPattern(Pattern):
 
     def __iter__(self):
         return iter(self.value.items())
+
+    def plot(
+            self, fig=None, axes: list[plt.Axes] = None, n_dimensions_per_row: int = None,
+            subpattern: Self = None, superpattern: Self = None,
+            dimension_params: dict = None, common_params: dict = None,
+            dimension_name_place: Literal['xlabel', 'ylabel', 'title', None] = 'title',
+            dimension_name_params: dict = None,
+            **kwargs
+    ) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        dimension_params = dict() if dimension_params is None else deepcopy(dimension_params)
+        common_params = dict() if common_params is None else deepcopy(common_params)
+        for dim in self.value:
+            if dim not in dimension_params:
+                dimension_params[dim] = dict()
+        for dim in dimension_params:
+            for k, v in common_params.items():
+                if k not in dimension_params[dim]:
+                    dimension_params[dim][k] = v
+        dimension_name_params = dict() if dimension_name_params is None else dimension_name_params
+
+        if axes is None:
+            fig = plt.gcf() if fig is None else fig
+            n_dimensions_per_row = len(self.value) if n_dimensions_per_row is None else n_dimensions_per_row
+            axes = fig.subplots(math.ceil(len(self.value)/n_dimensions_per_row), n_dimensions_per_row)
+            if isinstance(axes, plt.Axes):
+                axes = [axes]
+        if isinstance(axes, np.ndarray):
+            axes = axes.flatten()
+
+        for ax in axes[len(self.value):]:
+            ax.axis('off')
+
+        subpattern = self.__class__(subpattern) if subpattern is not None else self
+        superpattern = self.__class__(superpattern) if superpattern is not None else self
+
+        for dim, ax in zip(self.value, axes):
+            self.value[dim].plot(ax=ax, superpattern=superpattern[dim], subpattern=subpattern[dim], **dimension_params[dim])
+
+            if dimension_name_place == 'xlabel':
+                ax.set_xlabel(dim, **dimension_name_params)
+            if dimension_name_place == 'ylabel':
+                ax.set_ylabel(dim, **dimension_name_params)
+            if dimension_name_place == 'title':
+                ax.set_title(dim, **dimension_name_params)
+
+        if fig: fig.subplots_adjust()
+
+
+class HyperrectanglePattern(CartesianPattern):
+    PatternValueType = frozendict[str, IntervalPattern]
+    DimensionTypes: dict[str, Type[IntervalPattern]] = None  # required for parsing stings of dimensional patterns
+
+    def __init__(self, value) -> None:
+        super().__init__(value)
+        assert {isinstance(dimension_value, IntervalPattern) for dimension_value in self.value.values()}, \
+            ("HyperrectanglePattern can only represent multidimensional Interval patterns. "
+             f"Received non-interval dimensions: {[k for k in self.value.keys() if not isinstance(self.value[k], IntervalPattern)]}.")
+
+    def preprocess_value(cls, value) -> PatternValueType:
+        value_new = dict()
+        unprocessed = set()
+        for k, v in value.items():
+            if isinstance(v, IntervalPattern):
+                value_new[k] = v
+                continue
+            try:
+                value_new[k] = IntervalPattern(v)
+            except:
+                unprocessed.add(k)
+        if unprocessed:
+            raise ValueError(f"Error when preprocessing HyperrectanglePattern value. "
+                             f"The following dimensions could not have been converted to IntervalPattern: {dict([(k, value[k]) for k in unprocessed])}.")
+        return frozendict(value_new)
+
+
+    def plot(
+            self, fig=None, axes: list[plt.Axes] = None, n_dimensions_per_row: int = 1,
+            dimension_params: dict = None,  common_params: dict = None,
+            dimension_name_place: Literal['xlabel', 'ylabel', 'title', None] = 'ylabel',
+            dimension_name_params: dict = None,
+            **kwargs
+    ) -> None:
+        """Visualise the pattern via matplotlib.pyplot"""
+        if dimension_name_params is None and dimension_name_place == 'ylabel':
+            dimension_name_params = {'rotation': 0, 'ha': 'right'}
+        super().plot(
+            fig=fig, axes=axes, n_dimensions_per_row=n_dimensions_per_row,
+            dimension_params=dimension_params, common_params=common_params,
+            dimension_name_place=dimension_name_place, dimension_name_params=dimension_name_params,
+            **kwargs
+        )
+
+
+class RectanglePattern(HyperrectanglePattern):
+    def __init__(self, value) -> None:
+        super().__init__(value)
+        assert len(self.value) == 2, 'RectanglePattern should use exactly two dimensions'
+
+    def plot(
+            self, ax: plt.Axes = None, type_: Literal['Rectangle', 'Hyperrectangle'] = 'Rectangle',
+            dimensions_order: list[str] = None, xlim: tuple[float, float] = None, ylim: tuple[float, float] = None,
+            face_color = 'lightblue', face_alpha = 1, face_zorder = 1, label: str = None,
+            edge_color = 'black', edge_linewidth=2, edge_linestyles: tuple[str, str] = ('--', '-'),
+            text_loc: str = 'auto',
+            **kwargs
+    ) -> None:
+        if type_ == 'Hyperrectangle':
+            super().plot(**kwargs)
+            return
+
+        ax = plt.gca() if ax is None else ax
+        dimensions_order = list(self.value) if dimensions_order is None else dimensions_order
+        xdim, ydim = dimensions_order
+
+        xlim = self.value[xdim]._calc_plot_xlim(xlim)
+        ylim = self.value[ydim]._calc_plot_xlim(ylim)
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
+        ax.set_xlabel(xdim)
+        ax.set_ylabel(ydim)
+
+        # Visualising the face of the rectangle
+        left = max(self.value[xdim].lower_bound, xlim[0])
+        right = min(self.value[xdim].upper_bound, xlim[1])
+        bottom = max(self.value[ydim].lower_bound, ylim[0])
+        top = min(self.value[ydim].upper_bound, ylim[1])
+
+        rect = plt.Rectangle((left, bottom), right - left, top - bottom, linewidth=0,
+                                 facecolor=face_color, alpha=face_alpha, zorder=face_zorder, label=label)
+        ax.add_patch(rect, )
+
+        # Visualising the edges around the rectangle
+        xmin_perc = max(0, (self.value[xdim].lower_bound - xlim[0]) / (xlim[1] - xlim[0]))
+        xmax_perc = min(1, (self.value[xdim].upper_bound - xlim[0]) / (xlim[1] - xlim[0]))
+        ymin_perc = max(0, (self.value[ydim].lower_bound - ylim[0]) / (ylim[1] - ylim[0]))
+        ymax_perc = min(1, (self.value[ydim].upper_bound - ylim[0]) / (ylim[1] - ylim[0]))
+
+        if xlim[0] < left:
+            interval = self.value[xdim]
+            ax.axvline(left, ymin_perc, ymax_perc,
+                       linestyle=edge_linestyles[interval.is_lower_bound_closed], color=edge_color, linewidth=edge_linewidth)
+
+        if right < xlim[1]:
+            interval = self.value[xdim]
+            ax.axvline(right, ymin_perc, ymax_perc,
+                       linestyle=edge_linestyles[interval.is_upper_bound_closed], color=edge_color, linewidth=edge_linewidth)
+
+        if ylim[0] < bottom:
+            interval = self.value[ydim]
+            ax.axhline(bottom, xmin_perc, xmax_perc,
+                       linestyle=edge_linestyles[interval.is_lower_bound_closed], color=edge_color, linewidth=edge_linewidth)
+
+        if top < ylim[1]:
+            interval = self.value[ydim]
+            ax.axhline(top, xmin_perc, xmax_perc,
+                       linestyle=edge_linestyles[interval.is_upper_bound_closed], color=edge_color, linewidth=edge_linewidth)
+
+
+        # Write the text
+        if text_loc:
+            if text_loc == 'auto':
+                left_width, inner_width, right_width = left - xlim[0], right - left, xlim[1] - right
+                max_width = max(left_width, inner_width, right_width)
+
+                text_x_loc = 'left' if left_width == max_width else 'right' if right_width == max_width else 'center'
+
+                bottom_height, inner_height, top_height = bottom - ylim[0], top - bottom, ylim[1] - top
+                max_height = max(bottom_height, inner_height, top_height)
+                text_y_loc = 'bottom' if bottom_height == max_height else 'top' if top_height == max_height else 'center'
+
+            elif text_loc == 'center':
+                text_x_loc, text_y_loc = 'center', 'center'
+            else:
+                text_y_loc, text_x_loc = text_loc.split()
+            assert text_y_loc in {'bottom', 'top', 'center'} and text_x_loc in {'left', 'right', 'center'}, \
+                (f"Cannot parse `text_loc` parameter: {text_loc}. "
+                 f"Provide first the vertical location (i.e. 'bottom', 'top', or 'center') and "
+                 f"then the horisontal location (i.e. 'left', 'right', or 'center').")
+
+            text_x = {'left': left * 0.99, 'right': right * 1.01, 'center': (left+right)/2}[text_x_loc]
+            text_y = {'bottom': bottom * 0.99, 'top': top * 1.01, 'center': (bottom+top)/2}[text_y_loc]
+            text_ha = {'left': 'right', 'right': 'left', 'center': 'center'}[text_x_loc]
+            text_va = {'bottom': 'top', 'top': 'bottom', 'center': 'center'}[text_y_loc]
+            ax.text(text_x, text_y, f"{xdim}: {self.value[xdim]}\n{ydim}: {self.value[ydim]}", ha=text_ha, va=text_va)
