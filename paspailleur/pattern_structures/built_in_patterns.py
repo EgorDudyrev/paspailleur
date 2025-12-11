@@ -265,7 +265,7 @@ class ItemSetPattern(Pattern):
             **kwargs
     ) -> None:
         """Visualise the pattern with Matplotlib.pyplot"""
-        ax = plt.subplots()[1] if ax is None else ax
+        ax = plt.gca() if ax is None else ax
         superpattern = self.__class__(superpattern) if superpattern is not None else self
 
         if type_ == 'grid':
@@ -318,8 +318,6 @@ class ItemSetPattern(Pattern):
 
         ax.axis('off')
         ax.imshow(wc, interpolation="bilinear")
-
-
 
 
 class CategorySetPattern(ItemSetPattern):
@@ -576,7 +574,7 @@ class CategorySetPattern(ItemSetPattern):
             **kwargs
     ) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
-        ax = plt.subplots()[1] if ax is None else ax
+        ax = plt.gca() if ax is None else ax
         subpattern = self.__class__(subpattern) if subpattern is not None else self
 
         if type_ == 'grid':
@@ -1200,7 +1198,7 @@ class IntervalPattern(Pattern):
              edge_linewidth=2, edge_linestyles: tuple[str, str] = ('--', '-'),
              **kwargs) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
-        ax = plt.subplots()[1] if ax is None else ax
+        ax = plt.gca() if ax is None else ax
 
         xlim = self._calc_plot_xlim(xlim)
 
@@ -1836,8 +1834,8 @@ class NgramSetPattern(Pattern):
              random_state=42, scale_font_with_length: bool = True,
              **kwargs) -> None:
         """Visualise the pattern via matplotlib.pyplot"""
-        if ax is None:
-            fig, ax = plt.subplots()
+        ax = plt.gca() if ax is None else ax
+
         superpattern = self if superpattern is None else self.__class__(superpattern)
         assert superpattern >= self, (f'Foreground pattern must be more precise than the visualised one. '
                                             f'Got {superpattern=} when visualising {self}')
@@ -2293,9 +2291,11 @@ class CartesianPattern(Pattern):
         dimension_name_params = dict() if dimension_name_params is None else dimension_name_params
 
         if axes is None:
-            fig = plt.figure() if fig is None else fig
+            fig = plt.gcf() if fig is None else fig
             n_dimensions_per_row = len(self.value) if n_dimensions_per_row is None else n_dimensions_per_row
             axes = fig.subplots(math.ceil(len(self.value)/n_dimensions_per_row), n_dimensions_per_row)
+            if isinstance(axes, plt.Axes):
+                axes = [axes]
         if isinstance(axes, np.ndarray):
             axes = axes.flatten()
 
@@ -2380,7 +2380,7 @@ class RectanglePattern(HyperrectanglePattern):
             super().plot(**kwargs)
             return
 
-        ax = plt.subplots()[1] if ax is None else ax
+        ax = plt.gca() if ax is None else ax
         dimensions_order = list(self.value) if dimensions_order is None else dimensions_order
         xdim, ydim = dimensions_order
 
