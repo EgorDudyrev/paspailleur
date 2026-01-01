@@ -1,3 +1,5 @@
+import textwrap
+import warnings
 from typing import Union, TypeVar
 
 import numpy as np
@@ -74,14 +76,21 @@ def pattern_factory(pattern_class: Union[type[TPattern], str], pattern_name: str
     return FactoredPattern
 
 
-def from_pandas(df: pd.DataFrame) -> type[TPattern]:
+def from_pandas(df: pd.DataFrame, pattern_name: str = 'PandasPattern') -> type[TPattern]:
     DimensionTypes = {}
     for f, dtype in df.dtypes.items():
         if np.issubdtype(dtype, np.number):
             pclass = 'IntervalPattern'
-            pparams = dict(BoundsUniverse=tuple(sorted(df[f].unique())))
+            pparams = dict(BoundsUniverse=tuple(sorted([x for x in df[f].unique() if not np.isnan(x)])))
         elif np.issubdtype(dtype, np.object_):
             pclass = 'CategorySetPattern'
-            pparams = dict(Universe=frozenset(df[f].unique()))
-        DimensionTypes[f] = pattern_factory(pclass, pattern_name=f, **pparams)
-    return pattern_factory('CartesianPattern', pattern_name='PandasPattern', DimensionTypes=DimensionTypes)
+            pparams = dict(Universe=frozenset([x for x in df[f].unique() if not (isinstance(x, float) and np.isnan(x))]))
+        DimensionTypes[f] = pattern_factory(pclass, pattern_name=f"{f}Pattern", **pparams)
+
+        if df[f].isna().any():
+            warnings.warn(
+                f"Dimension '{f}' has `nan` values. "
+                f"If unchanged, they will be map to the minimal pattern per dimension: " +
+                textwrap.shorten(str(DimensionTypes[f].get_min_pattern()), 40)
+            )
+    return pattern_factory('CartesianPattern', pattern_name=pattern_name, DimensionTypes=DimensionTypes)

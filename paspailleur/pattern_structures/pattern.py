@@ -1,6 +1,7 @@
 from typing import TypeVar, Self, Optional, Literal
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Pattern:
@@ -45,7 +46,7 @@ class Pattern:
     """
     PatternValueType = TypeVar('PatternValueType')
 
-    def __init__(self, value: PatternValueType):
+    def __init__(self, value: Optional[PatternValueType] = None):
         """
         Initialize a Pattern instance with a given value.
 
@@ -59,6 +60,9 @@ class Pattern:
         ValueError
             If the value cannot be parsed from a string.
         """
+        if value is None or (isinstance(value, float) and np.isnan(value)):
+            value = self.get_min_pattern().value
+
         if isinstance(value, Pattern):
             value = value.value
 
